@@ -1,224 +1,320 @@
 import 'package:flutter/material.dart';
+ 
+import '../models/post.dart';
+import '../models/user.dart';
+import '../services/post_service.dart';
+import '../services/storage_service.dart';
+import '../services/user_service.dart';
 import '../widgets/post_card.dart';
-import 'package:cached_network_image/cached_network_image.dart';
-
-class NewsFeedScreen extends StatelessWidget {
+import 'detail_screen.dart';
+ 
+class NewsFeedScreen extends StatefulWidget {
   const NewsFeedScreen({super.key});
-
+ 
   @override
-  Widget build(BuildContext context) {
-    final posts = [
-      PostCard(
-        userName: 'Marceline the Vampire',
-        postContent: '♡✧˚ ༘ ⋆｡♡˚',
-        numOfLikes: 214,
-        date: 'October 11',
-        postImage: 'assets/images/post.avif',
-        profileImage: 'assets/images/marceline.jpg',
-      ),
-      PostCard(
-        userName: 'Shirene Rivera',
-        postContent: 'movie date with this girl ♡',
-        numOfLikes: 385,
-        date: 'December 2',
-        postImage: 'assets/images/AT.avif',
-        profileImage: 'assets/images/Profile.jpg',
-      ),
-      PostCard(
-        userName: 'Bherli Sison',
-        postContent: 'Doing my shoot today',
-        numOfLikes: 1000,
-        date: 'May 30',
-        postImage: 'assets/images/post5.jpg',
-        profileImage: 'assets/images/bherliane.jpg',
-      ),
-      PostCard(
-        userName: 'Cyrell Romero',
-        postContent: 'morning ride',
-        numOfLikes: 550,
-        date: 'November 8',
-        postImage: 'assets/images/post6.jpg',
-        profileImage: 'assets/images/yumyum.webp',
-      ),
-      PostCard(
-        userName: 'Lorenzo Limjoco',
-        postContent: 'night out',
-        numOfLikes: 200,
-        date: 'January 8',
-        postImage: 'assets/images/post7.jpg',
-        profileImage: 'assets/images/lorenzo.jpg',
-      ),
-    ];
-
-    // Enhancement 1: Alternate NewsFeed post and Advertisement post (3–4 times)
-    final List<Widget> feed = [];
-    for (int i = 0; i < posts.length; i++) {
-      feed.add(posts[i]);
-
-      // insert ads after the first 4 posts (3–4 alternations)
-      if (i < 4) {
-        feed.add(const _AdvertisementSection());
-      }
-    }
-
-    return ListView(
-      children: feed,
-    );
-  }
+  State<NewsFeedScreen> createState() => NewsFeedScreenState();
 }
-
-class _AdvertisementSection extends StatelessWidget {
-  const _AdvertisementSection();
-
-  static const List<Map<String, String>> ads = [
-    {
-      'title': 'MORE DETAILS',
-      'subtitle': 'Limited Edition!',
-      'image': 'https://melissalinford2019.home.blog/wp-content/uploads/2019/07/the-ad-i-wanna-use.jpg',
-    },
-    {
-      'title': 'MORE DETAILS',
-      'subtitle': 'New Product',
-      'image': 'https://i.ytimg.com/vi/SWVPBZ_5YRE/maxresdefault.jpg',
-    },
-    {
-      'title': 'MORE DETAILS',
-      'subtitle': 'New drop!',
-      'image': 'https://i.pinimg.com/474x/74/cd/0d/74cd0d744b289241d6c14d7d2b8370b9.jpg',
-    },
-    {
-      'title': 'MORE DETAILS',
-      'subtitle': 'Sale alert',
-      'image': 'https://cdn.prod.website-files.com/63a9fb94e473f36dbe99c1b1/6721eb7f26a3abad8150992b_670f9fd1db969b82e51ddac9_651bc96c3a63a9a0b05c6812_gVjhZDMuTFScETxfsOb1.jpeg',
-    },
-    {
-      'title': 'MORE DETAILS',
-      'subtitle': 'Best deals',
-      'image': 'https://mindesigns.com.au/wp-content/uploads/2024/07/82546073_10158492387896412_102606704276930560_n-1024x1024.jpg',
-    },
-    {
-      'title': 'MORE DETAILS',
-      'subtitle': 'Try this now',
-      'image': 'https://neilpatel.com/wp-content/uploads/2023/01/Food_advertisments12.jpg',
-    },
-  ];
-
-  bool _isNetwork(String path) {
-    final p = path.trim();
-    final uri = Uri.tryParse(p);
-    return uri != null && (uri.scheme == 'http' || uri.scheme == 'https');
+ 
+class NewsFeedScreenState extends State<NewsFeedScreen> {
+  final PostService _postService = PostService();
+ 
+  final UserService _userService = UserService();
+ 
+  final ScrollController _scrollController = ScrollController();
+ 
+  final List<PostItem> _posts = [];
+  final Map<int, AppUser> _usersById = {};
+ 
+  bool _loading = true;
+  bool _loadingMore = false;
+  bool _hasMore = true;
+ 
+  int _skip = 0;
+  final int _limit = 10;
+ 
+  static List<PostItem> filterPostsForUsers(
+    List<PostItem> posts,
+    Map<int, AppUser> usersById,
+  ) {
+    return posts.where((post) => usersById.containsKey(post.userId)).toList();
   }
-
+ 
   @override
-  Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.fromLTRB(10, 0, 10, 10),
-      child: Padding(
-        padding: const EdgeInsets.all(10),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Enhancement 2: Title above the items
-            const Text(
-              'Advertisement/Promotion',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.bold,
-              ),
+  void initState() {
+    super.initState();
+ 
+    _scrollController.addListener(_onScroll);
+ 
+    _initializeFeed();
+  }
+ 
+  Future<void> _initializeFeed() async {
+    await _loadUsers();
+    await _loadInitialPosts();
+  }
+ 
+  Future<void> _loadUsers() async {
+    try {
+      final users = await _userService.getUsers(limit: 100);
+ 
+      if (!mounted) return;
+ 
+      setState(() {
+        _usersById.clear();
+        for (final user in users) {
+          _usersById[user.id] = user;
+        }
+      });
+    } catch (_) {
+      // Ignore user loading errors and keep the post fallback.
+    }
+  }
+ 
+  Future<void> _loadInitialPosts() async {
+    setState(() {
+      _loading = true;
+      _skip = 0;
+      _posts.clear();
+      _hasMore = true;
+    });
+ 
+    try {
+      final posts = await _postService.getPosts(limit: _limit, skip: 0);
+ 
+      if (!mounted) return;
+ 
+      setState(() {
+        final validPosts = filterPostsForUsers(posts, _usersById);
+ 
+        _posts.addAll(validPosts);
+        _skip = posts.length;
+        _hasMore = posts.length == _limit;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+ 
+      setState(() {
+        _loading = false;
+      });
+ 
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Failed to load posts')));
+    }
+  }
+ 
+  void _onScroll() {
+    if (_scrollController.position.extentAfter < 400) {
+      _loadMore();
+    }
+  }
+ 
+  Future<void> _loadMore() async {
+    if (_loadingMore || !_hasMore || _loading) {
+      return;
+    }
+ 
+    setState(() {
+      _loadingMore = true;
+    });
+ 
+    try {
+      final posts = await _postService.getPosts(limit: _limit, skip: _skip);
+ 
+      if (!mounted) return;
+ 
+      setState(() {
+        final validPosts = filterPostsForUsers(posts, _usersById);
+ 
+        _posts.addAll(validPosts);
+        _skip += posts.length;
+        _hasMore = posts.length == _limit;
+        _loadingMore = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+ 
+      setState(() {
+        _loadingMore = false;
+      });
+    }
+  }
+ 
+  Future<void> refreshFeed() async {
+    await _loadUsers();
+    await _loadInitialPosts();
+  }
+ 
+  Future<void> _showCreatePostDialog() async {
+    final titleController = TextEditingController();
+    final bodyController = TextEditingController();
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    final user = await StorageService.getAuthUser();
+ 
+    if (!mounted || user == null) {
+      messenger?.showSnackBar(
+        const SnackBar(content: Text('Please log in first')),
+      );
+      return;
+    }
+ 
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Create Post'),
+          content: SizedBox(
+            width: 420,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: titleController,
+                  decoration: const InputDecoration(hintText: 'Title'),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: bodyController,
+                  minLines: 4,
+                  maxLines: 6,
+                  decoration: const InputDecoration(
+                    hintText: 'What do you want to share?',
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 10),
-
-            // Enhancement 2: 5–7 items
-            SizedBox(
-              height: 170,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                itemCount: ads.length,
-                separatorBuilder: (_, _) => const SizedBox(width: 10),
-                itemBuilder: (context, index) {
-                  final item = ads[index];
-                  final img = (item['image'] ?? '').trim();
-
-                  return SizedBox(
-                    width: 160,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(10),
-                            child: _isNetwork(img)
-                                ? CachedNetworkImage(
-                                    imageUrl: img,
-                                    width: double.infinity,
-                                    fit: BoxFit.cover,
-                                    placeholder: (context, url) => Container(
-                                      color: Colors.grey.shade300,
-                                      alignment: Alignment.center,
-                                      child: const SizedBox(
-                                        width: 22,
-                                        height: 22,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                        ),
-                                      ),
-                                    ),
-                                    errorWidget: (context, url, error) =>
-                                        Container(
-                                      color: Colors.grey.shade300,
-                                      alignment: Alignment.center,
-                                      child: const Icon(Icons.broken_image),
-                                    ),
-                                  )
-                                : Image.asset(
-                                    img,
-                                    width: double.infinity,
-                                    fit: BoxFit.cover,
-                                    errorBuilder:
-                                        (context, error, stackTrace) =>
-                                            Container(
-                                      color: Colors.grey.shade300,
-                                      alignment: Alignment.center,
-                                      child: const Icon(Icons.broken_image),
-                                    ),
-                                  ),
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                item['subtitle']!,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 10, vertical: 6),
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(10),
-                                color: Colors.grey.shade200,
-                              ),
-                              child: const Icon(Icons.arrow_forward, size: 14),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('Post'),
             ),
           ],
-        ),
+        );
+      },
+    );
+ 
+    if (result != true) {
+      return;
+    }
+ 
+    final title = titleController.text.trim();
+    final body = bodyController.text.trim();
+ 
+    if (body.isEmpty) {
+      messenger?.showSnackBar(
+        const SnackBar(content: Text('Post body cannot be empty')),
+      );
+      return;
+    }
+ 
+    try {
+      final newPost = await _postService.createPost(
+        userId: user.id,
+        title: title.isEmpty ? 'New post' : title,
+        body: body,
+      );
+ 
+      if (!mounted) return;
+ 
+      setState(() {
+        _posts.insert(0, newPost);
+      });
+ 
+      messenger?.showSnackBar(const SnackBar(content: Text('Post created')));
+    } catch (_) {
+      if (!mounted) return;
+ 
+      messenger?.showSnackBar(
+        const SnackBar(content: Text('Failed to create post')),
+      );
+    }
+  }
+ 
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+ 
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+ 
+    final feed = RefreshIndicator(
+      onRefresh: refreshFeed,
+      child: _posts.isEmpty
+          ? ListView(
+              children: const [
+                SizedBox(height: 250),
+                Center(child: Text('No posts available')),
+              ],
+            )
+          : ListView.builder(
+              controller: _scrollController,
+              itemCount: _posts.length + (_loadingMore ? 1 : 0),
+              itemBuilder: (context, index) {
+                if (index >= _posts.length) {
+                  return const Padding(
+                    padding: EdgeInsets.all(20),
+                    child: Center(child: CircularProgressIndicator()),
+                  );
+                }
+ 
+                final post = _posts[index];
+                final author = _usersById[post.userId];
+ 
+                final userName = 'User ${author?.id ?? 'Unknown'}';
+ 
+                return PostCard(
+                  key: ValueKey(post.id),
+                  postId: post.id,
+                  userName: userName,
+                  postContent: post.body,
+                  numOfLikes: post.likes,
+                  date: post.createdAt,
+                  postImage: post.images.isNotEmpty ? post.images.first : null,
+                  profileImage: author?.image ?? '',
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => DetailScreen(
+                          postId: post.id,
+                          userId: post.userId,
+                          userName: userName,
+                          postContent: post.body,
+                          date: post.createdAt,
+                          numOfLikes: post.likes,
+                          numOfDislikes: post.dislikes,
+                          imageUrl: post.images.isNotEmpty
+                              ? post.images.first
+                              : '',
+                          profileImageUrl: author?.image ?? '',
+                        ),
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+    );
+ 
+    return Scaffold(
+      floatingActionButton: FloatingActionButton(
+        backgroundColor: const Color(0xFF0D47A1),
+        onPressed: _showCreatePostDialog,
+        child: const Icon(Icons.add, color: Colors.white),
       ),
+      body: feed,
     );
   }
 }
+ 

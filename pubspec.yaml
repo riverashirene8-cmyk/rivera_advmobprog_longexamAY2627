@@ -1,22 +1,41 @@
-name: rivera_mobprog
-description: A new Flutter project.
+name: rivera_advmobprog_longexam1
+description: "A new Flutter project."
 publish_to: 'none'
+
 version: 0.1.0
 
 environment:
-  sdk: ">=3.10.0 <4.0.0"
+  sdk: ^3.10.0
 
 dependencies:
-  cached_network_image: ^3.4.1
-  carousel_slider: ^5.1.1
   flutter:
     sdk: flutter
-  flutter_screenutil: ^5.9.0
-  loading_animation_widget: ^1.3.0
+
+  # HTTP requests / DummyJSON API
+  http: 1.6.0
+
+  # Save login/user data locally
+  shared_preferences: ^2.5.5
+
+  # State management for Dark Mode / Theme
+  provider: ^6.1.5+1
+
+  # Network images
+  cached_network_image: ^3.4.1
+
+  # Carousel / image slider
+  carousel_slider: ^5.1.1
+
+  # Screen responsiveness
+  flutter_screenutil: ^5.9.3
+
+  # Environment variables
+  flutter_dotenv: ^6.0.1
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
+
   flutter_lints: ^6.0.0
 
 flutter:

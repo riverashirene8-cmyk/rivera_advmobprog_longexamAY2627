@@ -1,10 +1,14 @@
 import 'dart:async';
-import 'package:flutter/material.dart';
-import 'package:rivera_mobprog/widgets/custom_font.dart';
-import 'package:rivera_mobprog/widgets/post_action_button.dart';
-import 'package:rivera_mobprog/screens/detail_screen.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-
+import 'package:flutter/material.dart';
+ 
+import '../models/comment.dart';
+import '../services/comment_service.dart';
+import '../services/storage_service.dart';
+import '../services/user_service.dart';
+import 'custom_font.dart';
+import 'post_action_button.dart';
+ 
 class PostCard extends StatefulWidget {
   final String userName;
   final String postContent;
@@ -12,349 +16,514 @@ class PostCard extends StatefulWidget {
   final int numOfLikes;
   final String? postImage;
   final String? profileImage;
-
-  // ✅ AD SUPPORT
-  final bool isAd;
-  final String adButtonText;
-
+  final int? postId;
+  final VoidCallback? onTap;
+ 
   const PostCard({
     super.key,
     required this.userName,
     required this.postContent,
     required this.date,
+    this.numOfLikes = 0,
     this.postImage,
     this.profileImage,
-    this.numOfLikes = 0,
-    this.isAd = false,
-    this.adButtonText = 'MORE DETAILS',
+    this.postId,
+    this.onTap,
   });
-
+ 
   @override
   State<PostCard> createState() => _PostCardState();
 }
-
+ 
 class _PostCardState extends State<PostCard> {
-  late int _likes;
+  final CommentService _commentService = CommentService();
+  final UserService _userService = UserService();
+ 
+  final TextEditingController _commentController = TextEditingController();
+ 
+  final FocusNode _commentFocusNode = FocusNode();
+ 
+  int _likes = 0;
   bool _isLiked = false;
-
-  // ✅ NEW: force a visible loader for a short time
-  bool _showLoader = true;
-  Timer? _loaderTimer;
-
+ 
+  bool _loadingComments = false;
+ 
+  List<CommentItem> _comments = [];
+  final Map<int, String> _userFullNames = {};
+ 
   @override
   void initState() {
     super.initState();
+ 
     _likes = widget.numOfLikes;
-
-    _loaderTimer = Timer(const Duration(milliseconds: 350), () {
-      if (mounted) {
-        setState(() {
-          _showLoader = false;
-        });
-      }
-    });
+ 
+    _loadComments();
   }
-
+ 
   @override
   void dispose() {
-    _loaderTimer?.cancel();
+    _commentController.dispose();
+    _commentFocusNode.dispose();
+ 
     super.dispose();
   }
-
+ 
+  Future<void> _loadComments() async {
+    if (widget.postId == null) {
+      return;
+    }
+ 
+    setState(() {
+      _loadingComments = true;
+    });
+ 
+    try {
+      final comments = await _commentService.getCommentsByPost(widget.postId!);
+ 
+      if (!mounted) return;
+ 
+      // Fetch user full names for comments that don't have them
+      for (final comment in comments) {
+        if (comment.fullName == comment.username && comment.fullName.isNotEmpty) {
+          try {
+            final user = await _userService.getUserById(comment.userId);
+            if (user != null) {
+              _userFullNames[comment.userId] = user.fullName;
+            }
+          } catch (_) {
+            // Ignore errors fetching individual users
+          }
+        }
+      }
+ 
+      if (!mounted) return;
+ 
+      setState(() {
+        _comments = comments;
+      });
+    } catch (e) {
+      if (!mounted) return;
+ 
+      setState(() {
+        _comments = [];
+      });
+    }
+ 
+    if (!mounted) return;
+ 
+    setState(() {
+      _loadingComments = false;
+    });
+  }
+ 
+  Future<void> _submitComment() async {
+    final text = _commentController.text.trim();
+ 
+    if (text.isEmpty || widget.postId == null) {
+      return;
+    }
+ 
+    try {
+      final user = await StorageService.getAuthUser();
+ 
+      if (!mounted) return;
+ 
+      if (user == null) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('User not authenticated')));
+        return;
+      }
+ 
+      final comment = await _commentService.addComment(
+        postId: widget.postId!,
+        userId: user.id,
+        body: text,
+      );
+ 
+      if (!mounted) return;
+ 
+      setState(() {
+        _comments.insert(0, comment);
+      });
+ 
+      _commentController.clear();
+ 
+      FocusScope.of(context).unfocus();
+ 
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Comment added')));
+    } catch (e) {
+      if (!mounted) return;
+ 
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Failed to add comment')));
+    }
+  }
+ 
   void _toggleLike() {
     setState(() {
       if (_isLiked) {
         _likes--;
+ 
+        if (_likes < 0) {
+          _likes = 0;
+        }
       } else {
         _likes++;
       }
+ 
       _isLiked = !_isLiked;
     });
   }
-
-  bool _isNetwork(String? path) {
-    final p = path?.trim() ?? '';
-    final uri = Uri.tryParse(p);
-    return uri != null && (uri.scheme == 'http' || uri.scheme == 'https');
+ 
+  void _focusComment() {
+    FocusScope.of(context).requestFocus(_commentFocusNode);
   }
-
-  ImageProvider? _avatarProvider(String? img) {
-    final p = img?.trim();
-    if (p == null || p.isEmpty) return null;
-    if (_isNetwork(p)) return CachedNetworkImageProvider(p);
-    return AssetImage(p);
+ 
+  void _sharePost() {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Post shared')));
   }
-
-  Widget _forcedSpinnerPlaceholder() {
-    return Container(
-      color: Colors.grey.shade300,
-      alignment: Alignment.center,
-      child: const SizedBox(
-        width: 22,
-        height: 22,
-        child: CircularProgressIndicator(strokeWidth: 2),
-      ),
+ 
+  bool _isNetwork(String? image) {
+    if (image == null || image.trim().isEmpty) {
+      return false;
+    }
+ 
+    return image.startsWith('http://') || image.startsWith('https://');
+  }
+ 
+  Widget _profileImage() {
+    if (widget.profileImage == null || widget.profileImage!.trim().isEmpty) {
+      return const CircleAvatar(
+        radius: 20,
+        backgroundColor: Colors.grey,
+        child: Icon(Icons.person, color: Colors.white),
+      );
+    }
+ 
+    if (_isNetwork(widget.profileImage)) {
+      return CircleAvatar(
+        radius: 20,
+        backgroundColor: Colors.grey.shade300,
+        backgroundImage: CachedNetworkImageProvider(widget.profileImage!),
+      );
+    }
+ 
+    return CircleAvatar(
+      radius: 20,
+      backgroundColor: Colors.grey.shade300,
+      backgroundImage: AssetImage(widget.profileImage!),
     );
   }
-
-  Widget _postImageWidget(String path) {
-    final p = path.trim();
-
-    if (_isNetwork(p)) {
-      // ✅ NEW: show spinner for at least 350ms, even if cached/fast
-      if (_showLoader) {
-        return SizedBox(
+ 
+  Widget _postImage() {
+    final image = widget.postImage;
+ 
+    if (image == null || image.trim().isEmpty) {
+      return const SizedBox.shrink();
+    }
+ 
+    if (_isNetwork(image)) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: CachedNetworkImage(
+          imageUrl: image,
           width: double.infinity,
           height: 220,
-          child: _forcedSpinnerPlaceholder(),
-        );
-      }
-
-      return CachedNetworkImage(
-        imageUrl: p,
-        width: double.infinity,
-        height: 220,
-        fit: BoxFit.cover,
-        placeholder: (context, url) => _forcedSpinnerPlaceholder(),
-        errorWidget: (context, url, error) => Container(
-          color: Colors.grey.shade300,
-          alignment: Alignment.center,
-          child: const Icon(Icons.broken_image),
+          fit: BoxFit.cover,
+          placeholder: (context, url) {
+            return Container(
+              height: 220,
+              color: Colors.grey.shade300,
+              child: const Center(child: CircularProgressIndicator()),
+            );
+          },
+          errorWidget: (context, url, error) {
+            return Container(
+              height: 220,
+              color: Colors.grey.shade300,
+              child: const Icon(Icons.broken_image),
+            );
+          },
         ),
       );
     }
-
-    return Image.asset(
-      p,
-      width: double.infinity,
-      height: 220,
-      fit: BoxFit.cover,
-      errorBuilder: (context, error, stackTrace) => Container(
-        color: Colors.grey.shade300,
-        alignment: Alignment.center,
-        child: const Icon(Icons.broken_image),
+ 
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: Image.asset(
+        image,
+        width: double.infinity,
+        height: 220,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) {
+          return Container(
+            height: 220,
+            color: Colors.grey.shade300,
+            child: const Icon(Icons.broken_image),
+          );
+        },
       ),
     );
   }
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(12),
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => DetailScreen(
-              userName: widget.userName,
-              postContent: widget.postContent,
-              date: widget.date,
-              numOfLikes: _likes,
-              imageUrl: widget.postImage ?? '',
-              profileImageUrl: widget.profileImage ?? '',
+ 
+  Widget _buildComment(CommentItem comment) {
+    final body = comment.body;
+    final displayName = _userFullNames[comment.userId] ??
+        (comment.fullName.isNotEmpty ? comment.fullName : comment.username);
+ 
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const CircleAvatar(
+            radius: 14,
+            backgroundColor: Colors.grey,
+            child: Icon(Icons.person, size: 15, color: Colors.white),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Container(
+              padding: const EdgeInsets.all(9),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    displayName,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(body, style: const TextStyle(fontSize: 12)),
+                ],
+              ),
             ),
           ),
-        );
-      },
-      child: Card(
-        margin: const EdgeInsets.all(10),
-        child: Padding(
-          padding: const EdgeInsets.all(10),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              /// HEADER
-              Row(
-                children: [
-                  CircleAvatar(
-                    radius: 18,
-                    backgroundColor: Colors.grey.shade300,
-                    backgroundImage: _avatarProvider(widget.profileImage),
-                    child: (widget.profileImage == null ||
-                            (widget.profileImage?.trim().isEmpty ?? true))
-                        ? const Icon(Icons.person, color: Colors.black)
-                        : null,
-                  ),
-                  const SizedBox(width: 14),
-                  Column(
+        ],
+      ),
+    );
+  }
+ 
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+ 
+    final card = Card(
+      margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // USER HEADER
+            Row(
+              children: [
+                _profileImage(),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       CustomFont(
                         text: widget.userName,
                         fontSize: 15,
+                        color: theme.colorScheme.onSurface,
                         fontWeight: FontWeight.bold,
-                        color: Colors.black,
                       ),
+                      const SizedBox(height: 3),
                       Row(
                         children: [
                           CustomFont(
                             text: widget.date,
-                            fontSize: 12,
+                            fontSize: 11,
                             color: Colors.grey,
                           ),
                           const SizedBox(width: 4),
-                          const Icon(Icons.public, size: 14, color: Colors.grey),
+                          const Icon(
+                            Icons.public,
+                            size: 13,
+                            color: Colors.grey,
+                          ),
                         ],
                       ),
                     ],
                   ),
-                  const Spacer(),
-                  const Icon(Icons.more_horiz),
-                ],
-              ),
-
-              const SizedBox(height: 6),
-
-              if (widget.isAd) ...[
-                const SizedBox(height: 4),
-                const Text(
-                  'Advertisement/Promotion',
-                  style: TextStyle(
+                ),
+                IconButton(
+                  onPressed: () {},
+                  icon: const Icon(Icons.more_horiz),
+                ),
+              ],
+            ),
+ 
+            const SizedBox(height: 10),
+ 
+            // POST CONTENT
+            CustomFont(
+              text: widget.postContent,
+              fontSize: 13,
+              color: theme.colorScheme.onSurface,
+            ),
+ 
+            const SizedBox(height: 10),
+ 
+            // POST IMAGE
+            if (widget.postImage != null && widget.postImage!.trim().isNotEmpty)
+              _postImage(),
+ 
+            const SizedBox(height: 8),
+ 
+            // LIKE COUNT
+            Row(
+              children: [
+                Container(
+                  width: 22,
+                  height: 22,
+                  decoration: const BoxDecoration(
+                    color: Colors.blue,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.thumb_up,
+                    size: 13,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(width: 5),
+                Text('$_likes', style: const TextStyle(fontSize: 12)),
+                const Spacer(),
+                Text(
+                  'comment (${_comments.length})',
+                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+              ],
+            ),
+ 
+            const Divider(),
+ 
+            // ACTION BUTTONS
+            Row(
+              children: [
+                PostActionButton(
+                  icon: _isLiked ? Icons.thumb_up : Icons.thumb_up_alt_outlined,
+                  label: 'Like',
+                  color: _isLiked ? Colors.blue : theme.colorScheme.onSurface,
+                  onTap: _toggleLike,
+                ),
+                PostActionButton(
+                  icon: Icons.comment_outlined,
+                  label: 'Comment',
+                  onTap: _focusComment,
+                ),
+                PostActionButton(
+                  icon: Icons.share_outlined,
+                  label: 'Share',
+                  onTap: _sharePost,
+                ),
+              ],
+            ),
+ 
+            const SizedBox(height: 8),
+ 
+            // COMMENT FIELD
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                const CircleAvatar(
+                  radius: 15,
+                  backgroundColor: Colors.grey,
+                  child: Icon(Icons.person, size: 16, color: Colors.white),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: TextField(
+                    controller: _commentController,
+                    focusNode: _commentFocusNode,
+                    textInputAction: TextInputAction.send,
+                    onSubmitted: (_) => _submitComment(),
+                    decoration: InputDecoration(
+                      hintText: 'Write a comment...',
+                      filled: true,
+                      fillColor: theme.colorScheme.surfaceContainerHighest,
+                      isDense: true,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(15),
+                        borderSide: BorderSide.none,
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 9,
+                      ),
+                    ),
+                  ),
+                ),
+                IconButton(
+                  onPressed: _submitComment,
+                  icon: const Icon(Icons.send, color: Colors.blue),
+                ),
+              ],
+            ),
+ 
+            const SizedBox(height: 10),
+ 
+            // VIEW COMMENTS LINK
+            if (_comments.isNotEmpty && widget.onTap != null)
+              GestureDetector(
+                onTap: widget.onTap,
+                child: Text(
+                  'View comments',
+                  style: const TextStyle(
+                    color: Colors.blue,
                     fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
-                const SizedBox(height: 6),
-              ],
-
-              /// POST CONTENT
-              CustomFont(
-                text: widget.postContent,
-                fontSize: 12,
-                color: Colors.black,
               ),
-
-              /// POST/AD IMAGE
-              if (widget.postImage != null &&
-                  (widget.postImage?.trim().isNotEmpty ?? false)) ...[
-                const SizedBox(height: 8),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: _postImageWidget(widget.postImage!),
-                ),
-              ],
-
-              const SizedBox(height: 8),
-
-              if (widget.isAd) ...[
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade200,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          widget.adButtonText,
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        const Icon(Icons.arrow_forward, size: 14),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-
-              if (!widget.isAd) ...[
-                const SizedBox(height: 6),
-
-                /// ACTION BUTTONS
-                Row(
-                  children: [
-                    Expanded(
-                      child: InkWell(
-                        onTap: _toggleLike,
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              _isLiked
-                                  ? Icons.thumb_up
-                                  : Icons.thumb_up_alt_outlined,
-                              size: 18,
-                              color: _isLiked ? Colors.blue : Colors.black,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              '$_likes',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: _isLiked ? Colors.blue : Colors.black,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    PostActionButton(
-                      icon: Icons.comment_outlined,
-                      label: 'Comment',
-                      onTap: () {},
-                    ),
-                    PostActionButton(
-                      icon: Icons.share_outlined,
-                      label: 'Share',
-                      onTap: () {},
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 6),
-
-                /// COMMENT INPUT
-                Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 14,
-                      backgroundColor: Colors.grey.shade300,
-                      backgroundImage: _avatarProvider(widget.profileImage),
-                      child: (widget.profileImage == null ||
-                              (widget.profileImage?.trim().isEmpty ?? true))
-                          ? const Icon(Icons.person,
-                              size: 16, color: Colors.black)
-                          : null,
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Container(
-                        height: 28,
-                        padding: const EdgeInsets.symmetric(horizontal: 10),
-                        alignment: Alignment.centerLeft,
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade200,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Text(
-                          'Write a comment...',
-                          style: TextStyle(fontSize: 11, color: Colors.grey),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 10),
-                CustomFont(
-                  text: 'View comments',
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black,
-                ),
-              ],
-            ],
-          ),
+ 
+            const SizedBox(height: 8),
+ 
+            // COMMENTS
+            if (_loadingComments)
+              const Padding(
+                padding: EdgeInsets.all(10),
+                child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+              )
+            else if (_comments.isNotEmpty)
+              Column(children: _comments.take(3).map(_buildComment).toList())
+            else
+              const Text(
+                'No comments yet.',
+                style: TextStyle(color: Colors.grey, fontSize: 12),
+              ),
+          ],
         ),
+      ),
+    );
+ 
+    if (widget.onTap == null) {
+      return card;
+    }
+ 
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: widget.onTap,
+        child: card,
       ),
     );
   }

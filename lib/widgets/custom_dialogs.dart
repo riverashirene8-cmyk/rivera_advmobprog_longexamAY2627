@@ -1,99 +1,131 @@
-import 'package:rivera_mobprog/constants.dart';
-import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:rivera_mobprog/widgets/custom_font.dart';
-
-void customDialog(BuildContext context, {required title, required content}) {
-  AlertDialog alertDialog = AlertDialog(
-    title: Text(title),
-    content: Text(content),
-    actions: <Widget>[
-      ElevatedButton(
-        style: ElevatedButton.styleFrom(
-          backgroundColor: fbDarkPrimary,
-          foregroundColor: Colors.white,
-        ),
-        onPressed: () {
-          Navigator.of(context).pop();
-        },
-        child: Text('Okay'),
-      ),
-    ],
-  );
-
+import 'package:flutter/material.dart';
+ 
+import 'custom_font.dart';
+ 
+const Color _primaryColor = Color(0xFF1877F2);
+ 
+void customDialog(
+  BuildContext context, {
+  required String title,
+  required String content,
+}) {
   showDialog(
     context: context,
-    builder: (BuildContext context) {
-      return alertDialog;
+    builder: (context) {
+      return AlertDialog(
+        title: Text(title),
+        content: Text(content),
+        actions: [
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _primaryColor,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () {
+              Navigator.of(context).pop();
+            },
+            child: const Text('Okay'),
+          ),
+        ],
+      );
     },
   );
 }
-
+ 
 void customOptionDialog(
   BuildContext context, {
-  required title,
-  required content,
-  required Function onYes,
+  required String title,
+  required String content,
+  required VoidCallback onYes,
 }) {
-  AlertDialog alertDialog = AlertDialog(
-    title: CustomFont(text: title, fontSize: 30.sp, color: Colors.black),
-    content: CustomFont(text: content, fontSize: 14.sp, color: Colors.black),
-    actions: <Widget>[
-      OutlinedButton(
-        onPressed: () {
-          Navigator.of(context).pop();
-        },
-        child: CustomFont(text: 'No', fontSize: 14.sp, color: Colors.black),
-      ),
-      ElevatedButton(
-        style: ElevatedButton.styleFrom(
-          backgroundColor: fbDarkPrimary,
-          foregroundColor: Colors.white,
-        ),
-        onPressed: () {
-          Navigator.of(context).pop();
-          onYes();
-        },
-        child: CustomFont(
-          text: 'Yes',
-          fontSize: 14.sp,
-          color: fbTextColorWhite,
-        ),
-      ),
-    ],
-  );
-
   showDialog(
     context: context,
-    builder: (BuildContext context) {
-      return alertDialog;
+    builder: (context) {
+      return AlertDialog(
+        title: CustomFont(
+          text: title,
+          fontSize: 22,
+          color: Theme.of(context).colorScheme.onSurface,
+          fontWeight: FontWeight.bold,
+        ),
+        content: CustomFont(
+          text: content,
+          fontSize: 14,
+          color: Theme.of(context).colorScheme.onSurface,
+        ),
+        actions: [
+          OutlinedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+            },
+            child: const Text('No'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _primaryColor,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () {
+              Navigator.of(context).pop();
+              onYes();
+            },
+            child: const Text('Yes'),
+          ),
+        ],
+      );
     },
   );
 }
-
-void customShowImageDialog(BuildContext context, {required imageUrl}) {
-  AlertDialog alertDialog = AlertDialog(
-    content: SizedBox(
-      height: 300.h,
-      child: Center(
-        child: CachedNetworkImage(
-          imageUrl: imageUrl,
-          progressIndicatorBuilder: (context, url, downloadProgress) =>
-              CircularProgressIndicator(
-                color: fbDarkPrimary,
-                value: downloadProgress.progress,
-              ),
-          errorWidget: (context, url, error) => Icon(Icons.error, size: 100.sp),
-        ),
-      ),
-    ),
+ 
+void showMessagingUnavailableDialog(
+  BuildContext context,
+) {
+  customDialog(
+    context,
+    title: 'Messaging',
+    content: 'This feature is not available yet.',
   );
-
+}
+ 
+void customShowImageDialog(
+  BuildContext context, {
+  required String imageUrl,
+}) {
   showDialog(
     context: context,
-    builder: (BuildContext context) {
-      return alertDialog;
+    builder: (context) {
+      return AlertDialog(
+        content: SizedBox(
+          height: 300,
+          child: Center(
+            child: CachedNetworkImage(
+              imageUrl: imageUrl,
+              fit: BoxFit.contain,
+              progressIndicatorBuilder: (
+                context,
+                url,
+                progress,
+              ) {
+                return CircularProgressIndicator(
+                  value: progress.progress,
+                  color: _primaryColor,
+                );
+              },
+              errorWidget: (
+                context,
+                url,
+                error,
+              ) {
+                return const Icon(
+                  Icons.error,
+                  size: 80,
+                );
+              },
+            ),
+          ),
+        ),
+      );
     },
   );
 }

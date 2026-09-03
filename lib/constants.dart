@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
-
-const Color fbPrimary = Color(0xFF522C5D); // #522C5D
-const Color fbSecondary = Color(0xFFAE7DAC);
-const Color fbDarkPrimary = Color.fromARGB(255, 38, 19, 43);
-const Color fbLightPrimary = Colors.purple;
-const Color fbTextColorWhite = Color(0xFFFFFFFF);
+ 
+const String host = 'https://dummyjson.com';
+ 
+const Color fbPrimary = Color(0xFF0D47A1);
+const Color fbSecondary = Color(0xFF90CAF9);
+const Color fbDarkPrimary = Color.fromARGB(255, 12, 31, 65);
+const Color fbLightPrimary = Colors.blue;
+const Color fbTextColorWhite = Colors.white;

@@ -1,88 +1,87 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+ 
 import 'custom_font.dart';
  
-// ignore: must_be_immutable
-class CustomButton extends StatefulWidget {
-  late String buttonType;
-  late String buttonName;
-  late Color fontColor;
-  late Color outlineColor;
-  late dynamic onPressed;
+class CustomButton extends StatelessWidget {
+  final String buttonType;
+  final String buttonName;
+  final Color fontColor;
+  final Color outlineColor;
+  final VoidCallback? onPressed;
  
-  CustomButton({
+  const CustomButton({
     super.key,
     this.buttonType = 'elevated',
     required this.buttonName,
-    this.fontColor = Colors.black,
+    this.fontColor = Colors.white,
     required this.onPressed,
-    this.outlineColor = Colors.black,
+    this.outlineColor = const Color(0xFF0D47A1),
   });
  
   @override
-  State<CustomButton> createState() => _CustomButtonState();
-}
- 
-class _CustomButtonState extends State<CustomButton> {
-  @override
   Widget build(BuildContext context) {
-    widget.buttonType = widget.buttonType.toLowerCase();
+    final type = buttonType.toLowerCase();
  
-    if (widget.buttonType == 'outlined') {
+    if (type == 'outlined') {
       return OutlinedButton(
-        onPressed: widget.onPressed,
+        onPressed: onPressed,
         style: OutlinedButton.styleFrom(
           padding: EdgeInsets.symmetric(
-            horizontal: ScreenUtil().setWidth(30),
-            vertical: ScreenUtil().setHeight(10),
+            horizontal: 30.w,
+            vertical: 10.h,
           ),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(10.r),
           ),
-          side: BorderSide(color: widget.outlineColor),
+          side: BorderSide(color: outlineColor),
         ),
         child: CustomFont(
-          text: widget.buttonName,
-          fontSize: ScreenUtil().setSp(12),
-          color: widget.fontColor,
-        ),
-      );
-    } else if (widget.buttonType == 'text') {
-      return TextButton(
-        onPressed: widget.onPressed,
-        style: TextButton.styleFrom(
-          padding: EdgeInsets.symmetric(
-            horizontal: ScreenUtil().setWidth(30),
-            vertical: ScreenUtil().setHeight(10),
-          ),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-        ),
-        child: CustomFont(
-          text: widget.buttonName,
-          fontSize: ScreenUtil().setSp(12),
-          color: widget.fontColor,
-        ),
-      );
-    } else {
-      return ElevatedButton(
-        onPressed: widget.onPressed,
-        style: ElevatedButton.styleFrom(
-          padding: EdgeInsets.symmetric(
-            horizontal: ScreenUtil().setWidth(30),
-            vertical: ScreenUtil().setHeight(10),
-          ),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-        ),
-        child: CustomFont(
-          text: widget.buttonName,
-          fontSize: ScreenUtil().setSp(12),
-          color: widget.fontColor,
+          text: buttonName,
+          fontSize: 12.sp,
+          color: fontColor,
         ),
       );
     }
+ 
+    if (type == 'text') {
+      return TextButton(
+        onPressed: onPressed,
+        style: TextButton.styleFrom(
+          padding: EdgeInsets.symmetric(
+            horizontal: 30.w,
+            vertical: 10.h,
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10.r),
+          ),
+        ),
+        child: CustomFont(
+          text: buttonName,
+          fontSize: 12.sp,
+          color: fontColor,
+        ),
+      );
+    }
+ 
+    return ElevatedButton(
+      onPressed: onPressed,
+      style: ElevatedButton.styleFrom(
+        backgroundColor: const Color(0xFF0D47A1),
+        foregroundColor: Colors.white,
+        padding: EdgeInsets.symmetric(
+          horizontal: 30.w,
+          vertical: 10.h,
+        ),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10.r),
+        ),
+      ),
+      child: CustomFont(
+        text: buttonName,
+        fontSize: 12.sp,
+        color: Colors.white,
+      ),
+    );
   }
 }
