@@ -1,3 +1,3 @@
 # rivera_mobprog
 
-A new Flutter project.
+## Long Exam 1 Part 2 : The application follows a Models → Services → Screens structure where each part has a specific role. The Models represent the data used by the application, such as users, posts, and comments. The Services handle API requests and local storage, including authentication, posts, comments, user data, and preferences. The Screens interact with the Services to retrieve the required data and use the Models to display it to the user. This flow allows the application to organize data processing, API communication, and user interface functions in a clear and manageable way.
