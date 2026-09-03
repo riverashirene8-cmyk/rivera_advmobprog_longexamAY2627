@@ -1,29 +1,42 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_screenutil/flutter_screenutil.dart';
- 
+
 import '../constants.dart';
- 
+import '../services/storage_service.dart';
+
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
- 
+
   @override
   State<SplashScreen> createState() => _SplashScreenState();
 }
- 
+
 class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _navigateToLogin();
+      _checkLoginStatus();
     });
   }
- 
-  Future<void> _navigateToLogin() async {
+
+  // ENHANCEMENT 1:
+  // Check SharedPreferences to determine whether the user is logged in.
+  Future<void> _checkLoginStatus() async {
+    final isLoggedIn = await StorageService.isLoggedIn();
+
     if (!mounted) return;
-    Navigator.of(context).pushReplacementNamed('/login');
+
+    // ENHANCEMENT 1:
+    // Navigate to Home when the user is already logged in.
+    // Otherwise, navigate to the Login screen.
+    if (isLoggedIn) {
+      Navigator.of(context).pushReplacementNamed('/home');
+    } else {
+      Navigator.of(context).pushReplacementNamed('/login');
+    }
   }
- 
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -46,11 +59,12 @@ class _SplashScreenState extends State<SplashScreen> {
               ),
             ),
             const SizedBox(height: 32),
-            const CircularProgressIndicator(color: fbPrimary),
+            const CircularProgressIndicator(
+              color: fbPrimary,
+            ),
           ],
         ),
       ),
     );
   }
 }
- 

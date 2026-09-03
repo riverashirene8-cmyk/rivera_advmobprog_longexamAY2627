@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
- 
+
 import 'constants.dart';
 import 'provider/theme_provider.dart';
 import 'screens/home_screen.dart';
@@ -9,9 +9,12 @@ import 'screens/login_screen.dart';
 import 'screens/register_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/splash_screen.dart';
- 
+
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // ENHANCEMENT 1:
+  // Initialize the mobile application.
   runApp(
     ChangeNotifierProvider(
       create: (_) => ThemeProvider(),
@@ -19,14 +22,14 @@ void main() {
     ),
   );
 }
- 
+
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
- 
+
   @override
   Widget build(BuildContext context) {
     final themeProvider = context.watch<ThemeProvider>();
- 
+
     return ScreenUtilInit(
       designSize: const Size(412, 715),
       minTextAdapt: true,
@@ -36,16 +39,19 @@ class MyApp extends StatelessWidget {
           debugShowCheckedModeBanner: false,
           title: 'EduConnect',
           themeMode: themeProvider.themeMode,
+
           theme: ThemeData(
             useMaterial3: true,
             brightness: Brightness.light,
             primaryColor: fbPrimary,
-            scaffoldBackgroundColor: fbSecondary.withValues(alpha: 0.15),
+            scaffoldBackgroundColor:
+                fbSecondary.withValues(alpha: 0.15),
             colorScheme: ColorScheme.fromSeed(
               seedColor: fbPrimary,
               brightness: Brightness.light,
             ),
           ),
+
           darkTheme: ThemeData(
             useMaterial3: true,
             brightness: Brightness.dark,
@@ -55,7 +61,12 @@ class MyApp extends StatelessWidget {
               brightness: Brightness.dark,
             ),
           ),
+
+          // ENHANCEMENT 1:
+          // Start the mobile application with the Splash Screen
+          // to determine whether the user is already logged in.
           initialRoute: '/splash',
+
           routes: {
             '/splash': (_) => const SplashScreen(),
             '/login': (_) => const LogInScreen(),

@@ -1,12 +1,15 @@
 import 'dart:async';
 import 'dart:convert';
- 
+
 import 'package:http/http.dart' as http;
- 
+
 import '../constants.dart';
 import '../models/post.dart';
- 
+
 class PostService {
+
+  // ENHANCEMENT 2:
+  // Fetch general posts from the DummyJSON Posts API.
   Future<List<PostItem>> getPosts({
     int limit = 30,
     int skip = 0,
@@ -17,28 +20,32 @@ class PostService {
         'Content-Type': 'application/json',
       },
     );
- 
+
     if (response.statusCode != 200) {
       throw Exception(
         'Failed to load posts: ${response.statusCode}',
       );
     }
- 
+
     final dynamic data = jsonDecode(response.body);
- 
+
     if (data is! Map<String, dynamic>) {
       throw Exception('Invalid posts response');
     }
- 
+
     final List<dynamic> postsJson =
         data['posts'] is List ? data['posts'] as List<dynamic> : [];
- 
+
     return postsJson
         .whereType<Map<String, dynamic>>()
         .map(PostItem.fromJson)
         .toList();
   }
- 
+
+  // ENHANCEMENT 2:
+  // Fetch posts from the DummyJSON Posts API using the user's userID.
+  // This allows the profile screen to display only posts belonging
+  // to the currently authenticated user.
   Future<List<PostItem>> getPostsByUserId(int userId) async {
     final response = await http.get(
       Uri.parse('$host/posts/user/$userId'),
@@ -46,28 +53,29 @@ class PostService {
         'Content-Type': 'application/json',
       },
     );
- 
+
     if (response.statusCode != 200) {
       throw Exception(
         'Failed to load user posts: ${response.statusCode}',
       );
     }
- 
+
     final dynamic data = jsonDecode(response.body);
- 
+
     if (data is! Map<String, dynamic>) {
       throw Exception('Invalid user posts response');
     }
- 
+
     final List<dynamic> postsJson =
         data['posts'] is List ? data['posts'] as List<dynamic> : [];
- 
+
     return postsJson
         .whereType<Map<String, dynamic>>()
         .map(PostItem.fromJson)
         .toList();
   }
- 
+
+  // Create a new post for the authenticated user.
   Future<PostItem> createPost({
     required int userId,
     required String title,
@@ -88,22 +96,23 @@ class PostService {
         'images': images ?? <String>[],
       }),
     );
- 
+
     if (response.statusCode != 200 && response.statusCode != 201) {
       throw Exception(
         'Failed to create post: ${response.statusCode}',
       );
     }
- 
+
     final dynamic data = jsonDecode(response.body);
- 
+
     if (data is! Map<String, dynamic>) {
       throw Exception('Invalid post response');
     }
- 
+
     return PostItem.fromJson(data);
   }
- 
+
+  // Update an existing post.
   Future<PostItem> updatePost({
     required int postId,
     required String title,
@@ -121,27 +130,28 @@ class PostService {
         'body': body.trim(),
       }),
     );
- 
+
     if (response.statusCode != 200 && response.statusCode != 201) {
       throw Exception(
         'Failed to update post: ${response.statusCode}',
       );
     }
- 
+
     final dynamic data = jsonDecode(response.body);
- 
+
     if (data is! Map<String, dynamic>) {
       throw Exception('Invalid post response');
     }
- 
+
     return PostItem.fromJson(data);
   }
- 
+
+  // Delete an existing post.
   Future<void> deletePost(int postId) async {
     final response = await http.delete(
       Uri.parse('$host/posts/$postId'),
     );
- 
+
     if (response.statusCode != 200 && response.statusCode != 204) {
       throw Exception(
         'Failed to delete post: ${response.statusCode}',
